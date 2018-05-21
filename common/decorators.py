@@ -13,7 +13,8 @@ except ImportError:
 
 
 def mkdir(*args):
-    path = ''
+    path = '/Users/shuruiz/Work/ForkData/'
+    # path = '/home/feature/shuruiz/ForkData/PR_data'
     for chunk in args:
         path = os.path.join(path, chunk)
         if not os.path.isdir(path):
@@ -59,7 +60,7 @@ class fs_cache(object):
             cache_fpath = self.get_cache_fname(func.__name__, *args)
 
             if not self.expired(cache_fpath):
-                return pd.read_csv(cache_fpath, index_col=range(self.idx),
+                return pd.read_csv(cache_fpath,
                                    encoding="utf8", squeeze=True)
 
             res = func(*args)

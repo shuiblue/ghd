@@ -1,4 +1,3 @@
-
 import requests
 import time
 from datetime import datetime
@@ -33,7 +32,7 @@ def parse_commit(commit):
         'author_name': commit_author.get('name'),
         'author_email': commit_author.get('email'),
         'authored_date': commit_author.get('date'),
-        'message': commit['commit']['message'],
+        'message': commit['commit']['message'].replace("\n",","),
         'committed_date': commit['commit']['committer']['date'],
         'parents': "\n".join(p['sha'] for p in commit['parents']),
         'verified': commit.get('verification', {}).get('verified')
@@ -123,7 +122,7 @@ class GitHubAPIToken(object):
         # might throw a timeout
         r = requests.request(
             method, self.api_url + url, params=params, data=data,
-            headers=self._headers,  timeout=self.timeout)
+            headers=self._headers, timeout=self.timeout)
 
         if 'X-RateLimit-Remaining' in r.headers:
             remaining = int(r.headers['X-RateLimit-Remaining'])
@@ -242,20 +241,24 @@ class GitHubAPI(object):
         url = "repos/%s/pulls" % repo_name
 
         for pr in self.request(url, paginate=True, state='all'):
+            head = pr.get('head', {})
+            head_repo = head.get('repo') or {}
+            base = pr.get('base', {})
+            base_repo = base.get('repo') or {}
             yield {
                 'id': pr['number'],  # no idea what is in the id field
                 'title': pr['title'],
-                'body': pr['body'],
+                'body': pr['body'].replace("\n",","),
                 'labels': 'labels' in pr and [l['name'] for l in pr['labels']],
                 'created_at': pr['created_at'],
                 'updated_at': pr['updated_at'],
                 'closed_at': pr['closed_at'],
                 'merged_at': pr['merged_at'],
                 'author': pr['user']['login'],
-                'head': pr['head']['repo']['full_name'],
-                'head_branch': pr['head']['label'],
-                'base': pr['base']['repo']['full_name'],
-                'base_branch': pr['base']['label'],
+                'head': head_repo.get('full_name'),
+                'head_branch': head.get('label'),
+                'base': base_repo.get('full_name'),
+                'base_branch': base.get('label'),
             }
 
     def pull_request_commits(self, repo, pr_id):
@@ -369,7 +372,6 @@ class GitHubAPI(object):
 
 
 class GitHubAPIv4(GitHubAPI):
-
     def v4(self, query, **params):
         # type: (str) -> dict
         payload = json.dumps({"query": query, "variables": params})
