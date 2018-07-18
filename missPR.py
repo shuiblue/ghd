@@ -74,9 +74,9 @@ if __name__ == "__main__":
     #         for pullrequest_id in pullrequests['id']:
     #             if RepresentsInt(pullrequest_id):
     #                 pullrequest_id = int(pullrequest_id)
-    #                 # commits = get_pr_commits(repo, pullrequest_id)
-    #                 # comments = get_pr_comments(repo, pullrequest_id)
-    #                 get_pr_timeline(repo, pullrequest_id)
+    #                 commits = get_pr_commits(repo, pullrequest_id)
+    #                 comments = get_pr_comments(repo, pullrequest_id)
+    #                 # get_pr_timeline(repo, pullrequest_id)
     #
     #     else:
     #         print(" no pr " + repo)
@@ -86,6 +86,7 @@ if __name__ == "__main__":
 
     for repo in args.input:
         data = repo.strip().split(",")
+        print(data)
         repo = data[0]
         pullrequest_id = data[1]
         try:

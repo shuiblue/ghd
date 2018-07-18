@@ -13,8 +13,8 @@ except ImportError:
 
 
 def mkdir(*args):
-    path = '/Users/shuruiz/Work/ForkData/'
-    # path = '/home/feature/shuruiz/ForkData/PR_data'
+    # path = '/Users/shuruiz/Work/ForkData/'
+    path = '/home/feature/shuruiz/ForkData/PR_data'
     for chunk in args:
         path = os.path.join(path, chunk)
         if not os.path.isdir(path):

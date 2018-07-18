@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import logging
 from typing import Iterable
+from random import randint
 
 try:
     import settings
@@ -32,7 +33,7 @@ def parse_commit(commit):
         'author_name': commit_author.get('name'),
         'author_email': commit_author.get('email'),
         'authored_date': commit_author.get('date'),
-        'message': commit['commit']['message'].replace("\n",","),
+        'message': commit['commit']['message'].replace("\n", ","),
         'committed_date': commit['commit']['committer']['date'],
         'parents': "\n".join(p['sha'] for p in commit['parents']),
         'verified': commit.get('verification', {}).get('verified')
@@ -54,7 +55,8 @@ class GitHubAPIToken(object):
             self.token = token
             self._headers = {
                 "Authorization": "token " + token,
-                "Accept": "application/vnd.github.v3+json"
+                # "Accept": "application/vnd.github.v3+json"
+                "Accept": "application/vnd.github.mockingbird-preview"
             }
         self.limit = {}
         for api_class in ('core', 'search'):
@@ -166,7 +168,8 @@ class GitHubAPI(object):
             params['per_page'] = 100
 
         while True:
-            for token in sorted(self.tokens, key=lambda t: t.when(url)):
+            for token in self.tokens:
+                # for token in sorted(self.tokens, key=lambda t: t.when(url)):
                 if not token.ready(url):
                     continue
 
@@ -180,12 +183,27 @@ class GitHubAPI(object):
                         raise
                     continue  # i.e. try again
 
-                if r.status_code in (404, 451):  # API v3 only
-                    raise RepoDoesNotExist(
-                        "GH API returned status %s" % r.status_code)
+                if r.status_code in (404, 451):
+                    return {}
+                    # API v3 only
+                    # raise RepoDoesNotExist(
+                    #     "GH API returned status %s" % r.status_code)
                 elif r.status_code == 409:
                     # repository is empty https://developer.github.com/v3/git/
                     return {}
+                elif r.status_code == 410:
+                    # repository is empty https://developer.github.com/v3/git/
+                    return {}
+                elif r.status_code == 403:
+                    # repository is empty https://developer.github.com/v3/git/
+                    print("403 retry..")
+                    time.sleep(randint(1, 100))
+                    continue
+                elif r.status_code == 443:
+                    # repository is empty https://developer.github.com/v3/git/
+                    print("443 retry..")
+                    time.sleep(randint(1, 100))
+                    continue
                 r.raise_for_status()
                 res = r.json()
                 if paginate:
@@ -241,6 +259,7 @@ class GitHubAPI(object):
         url = "repos/%s/pulls" % repo_name
 
         for pr in self.request(url, paginate=True, state='all'):
+            body = pr.get('body', {})
             head = pr.get('head', {})
             head_repo = head.get('repo') or {}
             base = pr.get('base', {})
@@ -248,7 +267,7 @@ class GitHubAPI(object):
             yield {
                 'id': pr['number'],  # no idea what is in the id field
                 'title': pr['title'],
-                'body': pr['body'].replace("\n",","),
+                'body': body,
                 'labels': 'labels' in pr and [l['name'] for l in pr['labels']],
                 'created_at': pr['created_at'],
                 'updated_at': pr['updated_at'],
@@ -287,88 +306,264 @@ class GitHubAPI(object):
                 'updated_at': comment['updated_at'],
             }
 
-    def review_comments(self, repo, pr_id):
-        """ Pull request comments attached to some code
-        See also issue_comments()
+    def issue_pr_timeline(self, repo, issue_id):
+        """ Return timeline on an issue or a pull request
+        :param repo: str 'owner/repo'url
+        :param issue_id: int, either an issue or a Pull Request id
         """
-        url = "repos/%s/pulls/%s/comments" % (repo, pr_id)
+        url = "repos/%s/issues/%s/timeline" % (repo, issue_id)
+        events = self.request(url, paginate=True, state='all')
+        for event in events:
+            # print('repo: ' + repo + ' issue: ' + str(issue_id) + ' event: ' + event['event'])
+            if event['event'] == 'cross-referenced':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': "",
+                    'created_at': event.get('created_at'),
+                    'id': event['source']['issue']['number'],
+                    'repo': event['source']['issue']['repository']['full_name'],
+                    'type': 'pull_request' if 'pull_request' in event['source']['issue'].keys() else 'issue',
+                    'state': event['source']['issue']['state'],
+                    'assignees': event['source']['issue']['assignees'],
+                    'label': "",
+                    'body': ''
+                }
+            elif event['event'] == 'referenced':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': event['commit_id'],
+                    'created_at': event['created_at'],
+                    'id': '',
+                    'repo': '',
+                    'type': 'commit',
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            elif event['event'] == 'labeled':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': '',
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "label",
+                    'state': '',
+                    'assignees': '',
+                    'label': event['label']['name'],
+                    'body': ''
+                }
+            elif event['event'] == 'committed':
+                yield {
+                    'event': event['event'],
+                    'author': event['author']['name'],
+                    'email': event['author']['email'],
+                    'author_type': '',
+                    'author_association': '',
+                    'commit_id': event['sha'],
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "commit",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            elif event['event'] == 'reviewed':
+                author = event['user'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': event['author_association'],
+                    'commit_id': '',
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "review",
+                    'state': event['state'],
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            elif event['event'] == 'commented':
+                yield {
+                    'event': event['event'],
+                    'author': event['user']['login'],
+                    'email': '',
+                    'author_type': event['user']['type'],
+                    'author_association': event['author_association'],
+                    'commit_id': '',
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "comment",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': event['body']
+                }
+            elif event['event'] == 'assigned':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': '',
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "comment",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            elif event['event'] == 'closed':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': event['commit_id'],
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "comment",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            else:
+                yield {
+                    'event': event['event'],
+                    'author': '',
+                    'email': '',
+                    'author_type': '',
+                    'author_association': '',
+                    'commit_id': '',
+                    'created_at': event.get('created_at'),
+                    'id': '',
+                    'repo': '',
+                    'type': "",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
 
-        for comment in self.request(url, paginate=True, state='all'):
-            yield {
-                'id': comment['id'],
-                'body': comment['body'],
-                'author': comment['user']['login'],
-                'created_at': comment['created_at'],
-                'updated_at': comment['updated_at'],
-                'author_association': comment['author_association']
-            }
 
-    def user_info(self, user):
-        # Docs: https://developer.github.com/v3/users/#response
-        return self.request("users/" + user)
+def review_comments(self, repo, pr_id):
+    """ Pull request comments attached to some code
+    See also issue_comments()
+    """
+    url = "repos/%s/pulls/%s/comments" % (repo, pr_id)
 
-    def org_members(self, org):
-        # TODO: support pagination
-        return self.request("orgs/%s/members" % org)
-
-    def user_orgs(self, user):
-        # TODO: support pagination
-        return self.request("users/%s/orgs" % user)
-
-    @staticmethod
-    def project_exists(repo_name):
-        return bool(requests.head("https://github.com/" + repo_name))
-
-    @staticmethod
-    def canonical_url(project_url):
-        # type: (str) -> str
-        """ Normalize URL
-        - remove trailing .git  (IMPORTANT)
-        - lowercase (API is insensitive to case, but will allow to deduplicate)
-        - prepend "github.com"
-
-        :param project_url: str, user_name/repo_name
-        :return: github.com/user_name/repo_name with both names normalized
-
-        >>> GitHubAPI.canonical_url("pandas-DEV/pandas")
-        'github.com/pandas-dev/pandas'
-        >>> GitHubAPI.canonical_url("http://github.com/django/django.git")
-        'github.com/django/django'
-        >>> GitHubAPI.canonical_url("https://github.com/A/B/")
-        'github.com/a/b/'
-        """
-        url = project_url.lower()
-        for chunk in ("httpp://", "https://", "github.com"):
-            if url.startswith(chunk):
-                url = url[len(chunk):]
-        if url.endswith("/"):
-            url = url[:-1]
-        while url.endswith(".git"):
-            url = url[:-4]
-        return "github.com/" + url
-
-    @staticmethod
-    def activity(repo_name):
-        # type: (str) -> dict
-        """Unofficial method to get top 100 contributors commits by week"""
-        url = "https://github.com/%s/graphs/contributors" % repo_name
-        headers = {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept-Encoding': "gzip,deflate,br",
-            'Accept': "application/json",
-            'Origin': 'https://github.com',
-            'Referer': url,
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:53.0) "
-                          "Gecko/20100101 Firefox/53.0",
-            "Host": 'github.com',
-            "Accept-Language": 'en-US,en;q=0.5',
-            "Connection": "keep-alive",
-            "Cache-Control": 'max-age=0',
+    for comment in self.request(url, paginate=True, state='all'):
+        yield {
+            'id': comment['id'],
+            'body': comment['body'],
+            'author': comment['user']['login'],
+            'created_at': comment['created_at'],
+            'updated_at': comment['updated_at'],
+            'author_association': comment['author_association']
         }
-        cookies = requests.get(url).cookies
-        r = requests.get(url + "-data", cookies=cookies, headers=headers)
-        r.raise_for_status()
-        return r.json()
+
+
+def user_info(self, user):
+    # Docs: https://developer.github.com/v3/users/#response
+    return self.request("users/" + user)
+
+
+def org_members(self, org):
+    # TODO: support pagination
+    return self.request("orgs/%s/members" % org)
+
+
+def user_orgs(self, user):
+    # TODO: support pagination
+    return self.request("users/%s/orgs" % user)
+
+
+@staticmethod
+def project_exists(repo_name):
+    return bool(requests.head("https://github.com/" + repo_name))
+
+
+@staticmethod
+def canonical_url(project_url):
+    # type: (str) -> str
+    """ Normalize URL
+    - remove trailing .git  (IMPORTANT)
+    - lowercase (API is insensitive to case, but will allow to deduplicate)
+    - prepend "github.com"
+
+    :param project_url: str, user_name/repo_name
+    :return: github.com/user_name/repo_name with both names normalized
+
+    >>> GitHubAPI.canonical_url("pandas-DEV/pandas")
+    'github.com/pandas-dev/pandas'
+    >>> GitHubAPI.canonical_url("http://github.com/django/django.git")
+    'github.com/django/django'
+    >>> GitHubAPI.canonical_url("https://github.com/A/B/")
+    'github.com/a/b/'
+    """
+    url = project_url.lower()
+    for chunk in ("httpp://", "https://", "github.com"):
+        if url.startswith(chunk):
+            url = url[len(chunk):]
+    if url.endswith("/"):
+        url = url[:-1]
+    while url.endswith(".git"):
+        url = url[:-4]
+    return "github.com/" + url
+
+
+@staticmethod
+def activity(repo_name):
+    # type: (str) -> dict
+    """Unofficial method to get top 100 contributors commits by week"""
+    url = "https://github.com/%s/graphs/contributors" % repo_name
+    headers = {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept-Encoding': "gzip,deflate,br",
+        'Accept': "application/json",
+        'Origin': 'https://github.com',
+        'Referer': url,
+        "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:53.0) "
+                      "Gecko/20100101 Firefox/53.0",
+        "Host": 'github.com',
+        "Accept-Language": 'en-US,en;q=0.5',
+        "Connection": "keep-alive",
+        "Cache-Control": 'max-age=0',
+    }
+    cookies = requests.get(url).cookies
+    r = requests.get(url + "-data", cookies=cookies, headers=headers)
+    r.raise_for_status()
+    return r.json()
 
 
 class GitHubAPIv4(GitHubAPI):
