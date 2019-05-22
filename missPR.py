@@ -8,7 +8,7 @@ import scraper
 
 api = scraper.GitHubAPI()
 
-fs_cache = d.fs_cache('shurui')
+fs_cache = d.fs_cache('shurui_timeline')
 
 
 @fs_cache
@@ -32,6 +32,12 @@ def get_pr_comments(repo, pr):
 def get_pr_timeline(repo, issue):
     print("get reference of pr %s from %s" % (repo, issue))
     return pd.DataFrame(api.issue_pr_timeline(repo, issue))
+
+@fs_cache
+def get_pr_changedFiles(repo, issue):
+    print("get changed files of pr %s from %s" % (repo, issue))
+    return pd.DataFrame(api.issue_pr_timeline(repo, issue))
+
 
 
 def RepresentsInt(s):
@@ -81,19 +87,17 @@ if __name__ == "__main__":
     #     else:
     #         print(" no pr " + repo)
 
-
-
-
-    for repo in args.input:
-        data = repo.strip().split(",")
-        print(data)
-        repo = data[0]
-        pullrequest_id = data[1]
-        try:
-            get_pr_timeline(repo, pullrequest_id)
-        except:
-            raise
-        print(repo)
+    get_pr_timeline("facebook/react-native",135)
+    # for repo in args.input:
+    #     data = repo.strip().split(",")
+    #     print(data)
+    #     repo = data[0]
+    #     pullrequest_id = data[1]
+    #     try:
+    #         get_pr_timeline(repo, pullrequest_id)
+    #     except:
+    #         raise
+    #     print(repo)
 
 
 

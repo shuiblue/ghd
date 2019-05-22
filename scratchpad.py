@@ -8,7 +8,7 @@ import scraper
 
 api = scraper.GitHubAPI()
 
-fs_cache = d.fs_cache('shurui')
+fs_cache = d.fs_cache('shurui_prFiles')
 
 
 @fs_cache
@@ -32,6 +32,17 @@ def get_pr_comments(repo, pr):
 def get_pr_timeline(repo, issue):
     print("get reference of pr %s from %s" % (repo, issue))
     return pd.DataFrame(api.issue_pr_timeline(repo, issue))
+
+@fs_cache
+def get_pr_changedFiles(repo, issue):
+    print("get reference of pr %s from %s" % (repo, issue))
+    return pd.DataFrame(api.pr_changedFiles(repo, issue))
+
+
+@fs_cache
+def get_pr_commit_changedFile(repo, issue):
+    print("get reference of pr %s from %s" % (repo, issue))
+    return pd.DataFrame(api.pr_commit_changedFile(repo, issue))
 
 
 def RepresentsInt(s):
@@ -59,40 +70,35 @@ if __name__ == "__main__":
                         help='Output filename, "-" or skip for stdout')
     args = parser.parse_args()
 
-    # for repo in args.input:
-    #     repo = repo.strip()
-    #     # get_pr_timeline('joomla/joomla-cms', 5293)
-    #
-    #
-    #     try:
-    #         pullrequests = get_prs(repo)
-    #     except:
-    #         raise
-    #     print(repo)
-    #
-    #     if len(pullrequests):
-    #         for pullrequest_id in pullrequests['id']:
-    #             if RepresentsInt(pullrequest_id):
-    #                 pullrequest_id = int(pullrequest_id)
-    #                 # commits = get_pr_commits(repo, pullrequest_id)
-    #                 # comments = get_pr_comments(repo, pullrequest_id)
-    #                 get_pr_timeline(repo, pullrequest_id)
-    #
-    #     else:
-    #         print(" no pr " + repo)
-
-
-
-
     for repo in args.input:
-        data = repo.strip().split(",")
-        repo = data[0]
-        pullrequest_id = data[1]
+        repo = repo.strip()
+        # get_pr_timeline('joomla/joomla-cms', 5293)
+
+
         try:
-            get_pr_timeline(repo, pullrequest_id)
+            pullrequests = get_prs(repo)
         except:
             raise
         print(repo)
+
+        if len(pullrequests):
+            for pullrequest_id in pullrequests['id']:
+                if RepresentsInt(pullrequest_id):
+                    pullrequest_id = int(pullrequest_id)
+                    # commits = get_pr_commits(repo, pullrequest_id)
+                    # comments = get_pr_comments(repo, pullrequest_id)
+                    # get_pr_timeline(repo, pullrequest_id)
+
+                    get_pr_changedFiles(repo, pullrequest_id)
+
+
+        else:
+            print(" no pr " + repo)
+
+
+
+
+
 
 
 

@@ -8,7 +8,7 @@ import scraper
 
 api = scraper.GitHubAPI()
 
-fs_cache = d.fs_cache('shurui')
+fs_cache = d.fs_cache('shurui_timeline')
 
 
 @fs_cache
@@ -48,19 +48,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     for repo in args.input:
-        repo = repo.strip()
+        data = repo.strip().split(",")
+        print(data)
+        repo = data[0]
+        issueID = data[1]
         try:
-            issues = get_issues(repo)
+            get_issue_timeline(repo, issueID)
         except:
             raise
         print(repo)
-        # if len(issues):
-        #     for issue_id in issues['number']:
-        #         if RepresentsInt(issue_id):
-        #             issue_id = int(issue_id)
-        #             # commits = get_pr_commits(repo, pullrequest_id)
-        #             # comments = get_pr_comments(repo, pullrequest_id)
-        #             get_issue_timeline(repo, issue_id)
-
-        # else:
-        #     print(" no issue " + repo)

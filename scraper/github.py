@@ -55,8 +55,8 @@ class GitHubAPIToken(object):
             self.token = token
             self._headers = {
                 "Authorization": "token " + token,
-                # "Accept": "application/vnd.github.v3+json"
-                "Accept": "application/vnd.github.mockingbird-preview"
+                "Accept": "application/vnd.github.v3+json"
+                # "Accept": "application/vnd.github.mockingbird-preview"
             }
         self.limit = {}
         for api_class in ('core', 'search'):
@@ -136,6 +136,9 @@ class GitHubAPIToken(object):
 
             if r.status_code == 403 and remaining == 0:
                 raise TokenNotReady
+            if r.status_code == 443:
+                print('443 error')
+                raise TokenNotReady
         return r
 
 
@@ -175,6 +178,9 @@ class GitHubAPI(object):
 
                 try:
                     r = token.request(url, method=method, data=data, **params)
+                except requests.ConnectionError:
+                    print('except requests.ConnectionError')
+                    continue
                 except TokenNotReady:
                     continue
                 except requests.exceptions.Timeout:
@@ -184,25 +190,33 @@ class GitHubAPI(object):
                     continue  # i.e. try again
 
                 if r.status_code in (404, 451):
+                    print("404, 451 retry..")
                     return {}
                     # API v3 only
                     # raise RepoDoesNotExist(
                     #     "GH API returned status %s" % r.status_code)
                 elif r.status_code == 409:
+                    print("409 retry..")
                     # repository is empty https://developer.github.com/v3/git/
                     return {}
                 elif r.status_code == 410:
+                    print("410 retry..")
                     # repository is empty https://developer.github.com/v3/git/
                     return {}
                 elif r.status_code == 403:
                     # repository is empty https://developer.github.com/v3/git/
                     print("403 retry..")
-                    time.sleep(randint(1, 100))
+                    time.sleep(randint(1, 29))
                     continue
                 elif r.status_code == 443:
                     # repository is empty https://developer.github.com/v3/git/
                     print("443 retry..")
-                    time.sleep(randint(1, 100))
+                    time.sleep(randint(1, 29))
+                    continue
+                elif r.status_code == 502:
+                    # repository is empty https://developer.github.com/v3/git/
+                    print("443 retry..")
+                    time.sleep(randint(1, 29))
                     continue
                 r.raise_for_status()
                 res = r.json()
@@ -255,7 +269,6 @@ class GitHubAPI(object):
             # might be None for commits authored outside of github
             yield parse_commit(commit)
 
-    def repo_pulls(self, repo_name):
         url = "repos/%s/pulls" % repo_name
 
         for pr in self.request(url, paginate=True, state='all'):
@@ -451,7 +464,43 @@ class GitHubAPI(object):
                     'created_at': event.get('created_at'),
                     'id': '',
                     'repo': '',
-                    'type': "comment",
+                    'type': "close",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            elif event['event'] == 'subscribed':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': event['commit_id'],
+                    'created_at': event.get('created_at'),
+                    'id': event['commit_id'],
+                    'repo': '',
+                    'type': "subscribed",
+                    'state': '',
+                    'assignees': '',
+                    'label': '',
+                    'body': ''
+                }
+            elif event['event'] == 'merged':
+                author = event['actor'] or {}
+                yield {
+                    'event': event['event'],
+                    'author': author.get('login'),
+                    'email': '',
+                    'author_type': author.get('type'),
+                    'author_association': '',
+                    'commit_id': event['commit_id'],
+                    'created_at': event.get('created_at'),
+                    'id': event['commit_id'],
+                    'repo': '',
+                    'type': "merged",
                     'state': '',
                     'assignees': '',
                     'label': '',
@@ -474,6 +523,68 @@ class GitHubAPI(object):
                     'label': '',
                     'body': ''
                 }
+
+    def pr_changedFiles(self, repo, pr_id):
+        """ Return changed file list on an issue or a pull request
+        :param repo: str 'owner/repo'url
+        :param pr_id: int,  Pull Request id
+        """
+        url = "repos/%s/pulls/%s/files" % (repo, pr_id)
+        files = self.request(url, paginate=True, state='all')
+        for file in files:
+            # print('repo: ' + repo + ' issue: ' + str(issue_id) + ' event: ' + event['event'])
+
+            yield {
+                'filename': file['filename'],
+                'status': file['status'],
+                'additions': file['additions'],
+                'deletions': file['deletions'],
+                'changes': file['changes'],
+                'blob_url': file['blob_url'],
+                'raw_url': file['raw_url'],
+                'contents_url': file['contents_url']
+            }
+
+    def commit_changedFile(self, repo, sha):
+        """ Return changed file list on an issue or a pull request
+        :param repo: str 'owner/repo'url
+        :param sha,
+        """
+
+        url = "repos/%s/commits/%s" % (repo, sha)
+        commitInfo = self.request(url)
+        files = commitInfo['files']
+        for file in files:
+            yield {
+                'filename': file['filename'],
+                'status': file['status'],
+                'additions': file['additions'],
+                'deletions': file['deletions'],
+                'changes': file['changes']
+            }
+
+    def repoLastPushDate(self, repoUrl):
+        url = "repos/%s" % (repoUrl)
+        repoInfo = self.request(url)
+        if (len(repoInfo) == 0):
+            print(repoUrl + " deleted")
+            return ''
+        else:
+            return repoInfo['pushed_at']
+
+    def userEmail(self, loginID):
+        """ Return changed file list on an issue or a pull request
+        :param repo: str 'owner/repo'url
+        :param sha,
+        """
+        url = "users/%s" % (loginID)
+        userInfo = self.request(url)
+        if (len(userInfo) == 0):
+            print(loginID + " deleted" )
+            return ''
+        else:
+            email = userInfo['email']
+            return email
 
 
 def review_comments(self, repo, pr_id):
