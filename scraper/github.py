@@ -272,18 +272,12 @@ class GitHubAPI(object):
         url = "repos/%s/pulls" % repo_name
 
         for pr in self.request(url, paginate=True, state='all'):
-<<<<<<< HEAD
             body = pr.get('body', {})
             head = pr.get('head', {})
             head_repo = head.get('repo') or {}
             base = pr.get('base', {})
             base_repo = base.get('repo') or {}
-=======
-            head = pr.get('head', {})
-            head_repo = head and head.get('repo', ())
-            base = pr.get('base', {})
-            base_repo = base and base.get('repo', ())
->>>>>>> e7bc282a833af370889c5d2ce29ebefd31d81201
+
             yield {
                 'id': int(pr['number']),  # no idea what is in the id field
                 'title': pr['title'],
