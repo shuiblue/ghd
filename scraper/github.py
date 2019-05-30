@@ -261,6 +261,27 @@ class GitHubAPI(object):
                     'title': issue['title']
                 }
 
+    def repo_pulls(self, repo_name, page=None):
+        # type: (str, int) -> Iterable[dict]
+        url = "repos/%s/pulls" % repo_name
+
+        if page is None:
+            data = self.request(url, paginate=True, state='all')
+        else:
+            data = self.request(url, page=page, per_page=100, state='all')
+
+        for issue in data:
+            if 'pull_request' not in issue:
+                yield {
+                    'author': issue['user']['login'],
+                    'closed': issue['state'] != "open",
+                    'created_at': issue['created_at'],
+                    'updated_at': issue['updated_at'],
+                    'closed_at': issue['closed_at'],
+                    'number': issue['number'],
+                    'title': issue['title']
+                }
+
     def repo_commits(self, repo_name):
 
         url = "repos/%s/commits" % repo_name

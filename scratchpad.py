@@ -8,7 +8,7 @@ import scraper
 
 api = scraper.GitHubAPI()
 
-fs_cache = d.fs_cache('shurui_prFiles')
+fs_cache = d.fs_cache('annik_prFiles')
 
 
 @fs_cache
@@ -82,7 +82,8 @@ if __name__ == "__main__":
         print(repo)
 
         if len(pullrequests):
-            for pullrequest_id in pullrequests['id']:
+            # for pullrequest_id in pullrequests['id']:
+            for pullrequest_id in pullrequests['number']:
                 if RepresentsInt(pullrequest_id):
                     pullrequest_id = int(pullrequest_id)
                     # commits = get_pr_commits(repo, pullrequest_id)
