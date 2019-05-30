@@ -14,7 +14,8 @@ fs_cache = d.fs_cache('shurui_prFiles')
 @fs_cache
 def get_prs(repo):
     print("get pr from " + repo)
-    return pd.DataFrame(api.repo_pulls(repo))
+    # return pd.DataFrame(api.repo_pulls(repo))
+    return pd.DataFrame(api.repo_issues(repo))
 
 
 @fs_cache
@@ -83,6 +84,7 @@ if __name__ == "__main__":
 
         if len(pullrequests):
             for pullrequest_id in pullrequests['id']:
+                print(pullrequest_id)
                 if RepresentsInt(pullrequest_id):
                     pullrequest_id = int(pullrequest_id)
                     # commits = get_pr_commits(repo, pullrequest_id)
