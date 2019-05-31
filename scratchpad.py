@@ -13,7 +13,7 @@ fs_cache = d.fs_cache('annik_prFiles')
 
 @fs_cache
 def get_prs(repo):
-    print("get pr from " + repo)
+    print("get prs from " + repo)
     return pd.DataFrame(api.repo_pulls(repo))
 
 
