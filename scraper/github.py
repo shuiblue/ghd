@@ -189,6 +189,8 @@ class GitHubAPI(object):
                         raise
                     continue  # i.e. try again
 
+                if "Repository access blocked" in r.text:
+                    return "notExist"
                 if r.status_code in (404, 451):
                     print("404, 451 retry..")
                     return {}
@@ -239,6 +241,15 @@ class GitHubAPI(object):
                     datetime.now().strftime("%H:%M"), *divmod(sleep, 60))
                 time.sleep(sleep)
                 logger.info(".. resumed")
+
+    def isFork(self, repo_name, page=None):
+        url = "repos/%s" % repo_name
+        data = self.request(url)
+        if len(data) ==0 or data=='notExist':
+            return 'notExist'
+        else:
+            return data['fork']
+
 
     def repo_issues(self, repo_name, page=None):
         # type: (str, int) -> Iterable[dict]
@@ -581,11 +592,24 @@ class GitHubAPI(object):
         url = "users/%s" % (loginID)
         userInfo = self.request(url)
         if (len(userInfo) == 0):
-            print(loginID + " deleted" )
+            print(loginID + " deleted")
             return ''
         else:
             email = userInfo['email']
             return email
+
+    def userInfo(self, loginID):
+        url = "users/%s" % (loginID)
+        userInfo = self.request(url)
+        if (len(userInfo) == 0):
+            print(loginID + " deleted")
+            return 'userNotExist,userNotExist,userNotExist'
+        else:
+            email = userInfo['email'] or 'NULL'
+            name = userInfo['name'] or 'NULL'
+            return  email + "," +  name + "," + userInfo['type']
+
+
 
 
 def review_comments(self, repo, pr_id):
